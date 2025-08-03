@@ -1,0 +1,448 @@
+components:
+  schemas:
+    Assistant:
+      properties:
+        description:
+          title: Description
+          type: string
+        icon_color:
+          title: Icon Color
+          type: string
+        icon_url:
+          title: Icon Url
+          type: string
+        id:
+          title: Id
+          type: integer
+        name:
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      - description
+      - icon_color
+      title: Assistant
+      type: object
+    CreateChatCompletionRequest:
+      properties:
+        messages:
+          items:
+            $ref: '#/components/schemas/Message'
+          title: Messages
+          type: array
+        stream:
+          title: Stream
+          type: boolean
+      required:
+      - messages
+      - stream
+      title: CreateChatCompletionRequest
+      type: object
+    CreateChatCompletionResponse:
+      properties:
+        content:
+          title: Content
+          type: string
+        data_points:
+          items:
+            $ref: '#/components/schemas/DataPoint'
+          title: Data Points
+          type: array
+        error:
+          title: Error
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+      required:
+      - id
+      - content
+      - data_points
+      title: CreateChatCompletionResponse
+      type: object
+    DataPoint:
+      properties:
+        chunk_name:
+          title: Chunk Name
+          type: string
+        cite_number:
+          title: Cite Number
+          type: integer
+        content:
+          title: Content
+          type: string
+        document_id:
+          title: Document Id
+          type: integer
+        file_name:
+          title: File Name
+          type: string
+        page_number:
+          title: Page Number
+          type: integer
+        question_answer_id:
+          format: uuid
+          title: Question Answer Id
+          type: string
+        type:
+          $ref: '#/components/schemas/DataPointType'
+      required:
+      - cite_number
+      - chunk_name
+      - file_name
+      - content
+      - page_number
+      - type
+      title: DataPoint
+      type: object
+    DataPointType:
+      enum:
+      - internal
+      - question_answer
+      title: DataPointType
+      type: string
+    DocumentSignedUrl:
+      properties:
+        signed_url_original:
+          title: Signed Url Original
+          type: string
+        signed_url_pdf:
+          title: Signed Url Pdf
+          type: string
+      required:
+      - signed_url_original
+      title: DocumentSignedUrl
+      type: object
+    EndpointInfo:
+      properties:
+        assistant:
+          $ref: '#/components/schemas/Assistant'
+        id:
+          format: uuid
+          title: Id
+          type: string
+      required:
+      - id
+      - assistant
+      title: EndpointInfo
+      type: object
+    Evaluation:
+      enum:
+      - good
+      - bad
+      title: Evaluation
+      type: string
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          title: Detail
+          type: array
+      title: HTTPValidationError
+      type: object
+    Message:
+      properties:
+        content:
+          title: Content
+          type: string
+        role:
+          $ref: '#/components/schemas/MessageRole'
+      required:
+      - role
+      - content
+      title: Message
+      type: object
+    MessageRole:
+      enum:
+      - user
+      - assistant
+      title: MessageRole
+      type: string
+    QuestionAnswer:
+      properties:
+        answer:
+          title: Answer
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        question:
+          title: Question
+          type: string
+        status:
+          $ref: '#/components/schemas/QuestionAnswerStatus'
+        updated_at:
+          title: Updated At
+          type: string
+      required:
+      - id
+      - question
+      - answer
+      - updated_at
+      - status
+      title: QuestionAnswer
+      type: object
+    QuestionAnswerStatus:
+      enum:
+      - pending
+      - overwriting
+      - indexed
+      - failed
+      title: QuestionAnswerStatus
+      type: string
+    UpdateChatCompletionFeedbackCommentRequest:
+      properties:
+        comment:
+          title: Comment
+          type: string
+      required:
+      - comment
+      title: UpdateChatCompletionFeedbackCommentRequest
+      type: object
+    UpdateChatCompletionFeedbackEvaluationRequest:
+      properties:
+        evaluation:
+          $ref: '#/components/schemas/Evaluation'
+      required:
+      - evaluation
+      title: UpdateChatCompletionFeedbackEvaluationRequest
+      type: object
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          title: Location
+          type: array
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+      type: object
+  securitySchemes:
+    HTTPBearer:
+      scheme: bearer
+      type: http
+info:
+  title: api
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /endpoints/{endpoint_id}:
+    get:
+      operationId: GetEndpointInfo
+      parameters:
+      - in: path
+        name: endpoint_id
+        required: true
+        schema:
+          format: uuid
+          title: Endpoint Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointInfo'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Get Endpoint Info
+  /endpoints/{endpoint_id}/chat/completions:
+    post:
+      operationId: CreateChatCompletion
+      parameters:
+      - in: path
+        name: endpoint_id
+        required: true
+        schema:
+          format: uuid
+          title: Endpoint Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChatCompletionRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateChatCompletionResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Create Chat Completion
+  /endpoints/{endpoint_id}/completions/{completion_id}/comment:
+    patch:
+      operationId: UpdateChatCompletionFeedbackComment
+      parameters:
+      - in: path
+        name: endpoint_id
+        required: true
+        schema:
+          format: uuid
+          title: Endpoint Id
+          type: string
+      - in: path
+        name: completion_id
+        required: true
+        schema:
+          format: uuid
+          title: Completion Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChatCompletionFeedbackCommentRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Update Chat Completion Feedback Comment
+  /endpoints/{endpoint_id}/completions/{completion_id}/evaluation:
+    patch:
+      operationId: UpdateChatCompletionFeedbackEvaluation
+      parameters:
+      - in: path
+        name: endpoint_id
+        required: true
+        schema:
+          format: uuid
+          title: Endpoint Id
+          type: string
+      - in: path
+        name: completion_id
+        required: true
+        schema:
+          format: uuid
+          title: Completion Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChatCompletionFeedbackEvaluationRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Update Chat Completion Feedback Evaluation
+  /endpoints/{endpoint_id}/documents/{document_id}/signed-url:
+    get:
+      operationId: GetDocumentSignedUrl
+      parameters:
+      - in: path
+        name: endpoint_id
+        required: true
+        schema:
+          format: uuid
+          title: Endpoint Id
+          type: string
+      - in: path
+        name: document_id
+        required: true
+        schema:
+          title: Document Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSignedUrl'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Get Document Signed Url
+  /endpoints/{endpoint_id}/question-answers/{question_answer_id}:
+    get:
+      operationId: GetQuestionAnswer
+      parameters:
+      - in: path
+        name: endpoint_id
+        required: true
+        schema:
+          format: uuid
+          title: Endpoint Id
+          type: string
+      - in: path
+        name: question_answer_id
+        required: true
+        schema:
+          format: uuid
+          title: Question Answer Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswer'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Get Question Answer

@@ -1,0 +1,79 @@
+name: Create Pull Requests
+
+on:
+  push:
+    branches:
+      - main
+      - stg
+      - prod
+
+jobs:
+  create-pull-request-to-staging:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - run: gem install --no-document git-pr-release
+
+      - name: Create Pull Request
+        run: git-pr-release
+        env:
+          GIT_PR_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_PR_RELEASE_BRANCH_PRODUCTION: stg
+          GIT_PR_RELEASE_BRANCH_STAGING: main
+          GIT_PR_RELEASE_LABELS: pr-release
+          GIT_PR_RELEASE_TEMPLATE: .github/pr-templates/git-pr-release-stg.erb
+
+  create-pull-request-to-production:
+    if: github.ref_name == 'stg'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - run: gem install --no-document git-pr-release
+
+      - name: Create Pull Request
+        run: git-pr-release
+        env:
+          GIT_PR_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_PR_RELEASE_BRANCH_PRODUCTION: prod
+          GIT_PR_RELEASE_BRANCH_STAGING: stg
+          GIT_PR_RELEASE_LABELS: release
+          GIT_PR_RELEASE_TEMPLATE: .github/pr-templates/git-pr-release-prod.erb
+
+  create-pull-request-to-specific-branch:
+    if: github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target-branch: [jp-bank, jsbank, ibk, nrtas-ana, sbis-bank, kyuden, oss-bank]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - run: gem install --no-document git-pr-release
+
+      - name: Create Pull Request
+        run: git-pr-release
+        env:
+          GIT_PR_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_PR_RELEASE_BRANCH_PRODUCTION: ${{ matrix.target-branch }}
+          GIT_PR_RELEASE_BRANCH_STAGING: prod
+          GIT_PR_RELEASE_LABELS: release
+          GIT_PR_RELEASE_TEMPLATE: .github/pr-templates/git-pr-release-${{ matrix.target-branch }}.erb

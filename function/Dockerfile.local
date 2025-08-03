@@ -1,0 +1,17 @@
+ARG PYTHON_VERSION=3.10
+ARG DEBIAN_VERSION=bookworm
+FROM python:$PYTHON_VERSION-$DEBIAN_VERSION
+
+ARG GITHUB_PERSONAL_ACCESS_TOKEN
+RUN git config --global url.https://${GITHUB_PERSONAL_ACCESS_TOKEN}@github.com/.insteadOf https://github.com/
+
+WORKDIR /app
+
+COPY . .
+
+ENV PYTHONPATH=/app
+
+RUN pip install -U pip && \
+  pip install poetry==2.0.0 && \
+  poetry config virtualenvs.create false && \
+  poetry install --no-root

@@ -1,0 +1,30 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint", "react", "unused-imports", "simple-import-sort", "import"],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }], // 使われていない変数に警告
+    "@typescript-eslint/no-explicit-any": "warn", // 明示的にanyを使うと警告
+    "unused-imports/no-unused-imports": "error", // 使用していないimportは消える
+    "simple-import-sort/imports": "error",
+    "simple-import-sort/exports": "error",
+    "react/jsx-uses-react": "off", // ここから2つはReactの更新により表示されるエラーを消すため
+    "react/react-in-jsx-scope": "off", // 参考：https://zenn.dev/ryuu/scraps/583dad79532879
+    "react/jsx-key": ["error", { "checkFragmentShorthand": true }],
+    "import/newline-after-import": ["error", { "count": 1 }]
+  },
+  "ignorePatterns": ["src/orval/**/*.ts", "dist/**"]
+}

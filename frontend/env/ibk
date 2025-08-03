@@ -1,0 +1,10 @@
+VITE_SENTRY_ENV="production_ibk"
+VITE_AUTH0_DOMAIN="ibk-neoai-chat.jp.auth0.com"
+VITE_AUTH0_CLIENT_ID="TNSpmDUUnSqiaxns1djr4eLDzOY28Fup"
+VITE_AUTH0_AUDIENCE="https://ibk-neoai-chat.jp.auth0.com/api/v2/"
+VITE_EXTERNAL_API_URL="https://ibk.chat.neoai.jp/api"
+VITE_API_BASE_URL="https://ibk.chat.neoai.jp/backend-api"
+VITE_APP_BASE_URL="https://ibk.chat.neoai.jp"
+VITE_ADMINISTRATOR_API_BASE_URL="https://ibk.chat.neoai.jp/administrator-api"
+VITE_LAUNCH_DARKLY_CLIENT_SIDE_ID="667d1080663895109aff33a6"
+VITE_SENTRY_AUTH_TOKEN=

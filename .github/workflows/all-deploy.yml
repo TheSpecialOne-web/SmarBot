@@ -1,0 +1,70 @@
+name: "All: Deploy"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - stg
+      - prod
+      - jp-bank
+      - jsbank
+      - ibk
+      - nrtas-ana
+      - sbis-bank
+      - kyuden
+      - oss-bank
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.set-env.outputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set env
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          else
+            echo "env=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-infrastructure:
+    needs: setup
+    uses: ./.github/workflows/infrastructure-deploy.yml
+    with:
+      env: ${{ needs.setup.outputs.env }}
+    secrets: inherit
+
+  deploy-infrastructure-terraform:
+    # GCPを利用している環境のみ、Terraformでのデプロイを行う
+    if: contains(['dev', 'stg', 'prod', 'jp-bank', 'kyuden'], ${{ needs.setup.outputs.env }})
+    needs: setup
+    uses: ./.github/workflows/infrastructure-terraform-apply.yml
+    with:
+      env: ${{ needs.setup.outputs.env }}
+    secrets: inherit
+
+  deploy-backend:
+    needs: [setup, deploy-infrastructure, deploy-infrastructure-terraform]
+    uses: ./.github/workflows/backend-deploy.yml
+    with:
+      env: ${{ needs.setup.outputs.env }}
+    secrets: inherit
+
+  deploy-frontend:
+    needs: [setup, deploy-backend]
+    uses: ./.github/workflows/frontend-deploy.yml
+    with:
+      env: ${{ needs.setup.outputs.env }}
+    secrets: inherit
+
+  deploy-function:
+    needs: [setup, deploy-backend]
+    uses: ./.github/workflows/function-deploy.yml
+    with:
+      env: ${{ needs.setup.outputs.env }}
+    secrets: inherit

@@ -1,0 +1,22 @@
+ARG PYTHON_VERSION=3.10
+ARG DEBIAN_VERSION=bookworm
+FROM python:$PYTHON_VERSION-$DEBIAN_VERSION
+
+ARG GITHUB_PERSONAL_ACCESS_TOKEN
+RUN git config --global url.https://${GITHUB_PERSONAL_ACCESS_TOKEN}@github.com/.insteadOf https://github.com/
+
+RUN apt-get update && \
+  apt-get -y install --no-install-recommends libreoffice-calc fonts-ipafont-gothic \
+  libreoffice libreoffice-l10n-ja libreoffice-dmaths libreoffice-ogltrans libreoffice-writer2xhtml libreoffice-help-ja && \
+  apt-get clean
+
+WORKDIR /app
+
+COPY . .
+
+ENV PYTHONPATH=/app
+
+RUN pip install -U pip && \
+  pip install poetry==2.0.0 && \
+  poetry config virtualenvs.create false && \
+  poetry install --no-root

@@ -1,0 +1,126 @@
+name: "Infrastructure: Check"
+
+on:
+  pull_request:
+    paths:
+      - "infra/azure/**"
+      - ".github/workflows/infrastructure-check.yml"
+
+env:
+  # dev環境のパラメータ
+  LOCATION: "eastus"
+  ENVIRONMENT_NAME: "neosc-dev"
+  AZURE_KV_NAME: "neosc-dev-kv"
+
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: infra/azure
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate
+        uses: Azure/login@v2.1.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: az bicep build --file infra/azure/main.bicep
+          azcliversion: 2.63.0
+
+      - name: Validate
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az deployment sub validate \
+              --name validate-${{ github.run_id }} \
+              --template-file infra/azure/main.bicep \
+              --location ${{ env.LOCATION }} \
+              --parameters infra/azure/main.bicepparam
+          azcliversion: 2.63.0
+        env:
+          AZURE_LOCATION: ${{ env.LOCATION }}
+          AZURE_ENV_NAME: ${{ env.ENVIRONMENT_NAME }}
+
+      - name: What-If
+        id: what-if
+        uses: Azure/cli@v2.0.0
+        with:
+          inlineScript: |
+            az deployment sub what-if \
+              --name what-if-${{ github.run_id }} \
+              --template-file infra/azure/main.bicep \
+              --location ${{ env.LOCATION }} \
+              --parameters infra/azure/main.bicepparam > what-if.log
+          azcliversion: 2.63.0
+        env:
+          AZURE_LOCATION: ${{ env.LOCATION }}
+          AZURE_ENV_NAME: ${{ env.ENVIRONMENT_NAME }}
+          AZURE_KV_NAME: ${{ env.AZURE_KV_NAME }}
+
+      - name: Push PR Comment
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const whatIfResult = fs.readFileSync('what-if.log', 'utf8');
+            const output = `
+            ### What-If Results 📖 \`${{ steps.what-if.outcome }}\`
+
+            <details><summary>Show What-If</summary>
+
+            \`\`\`n
+            ${whatIfResult}
+            \`\`\`
+
+            </details>
+            `;
+
+            // Fetch existing comments on the PR
+            const comments = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            // Find comment previously posted by this action
+            const botComment = comments.data.find(comment => comment.user.login === "github-actions[bot]" && comment.body.includes("### What-If Results 📖"));
+
+            if (botComment) {
+              // Update the existing comment
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            } else {
+              // Create a new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            }

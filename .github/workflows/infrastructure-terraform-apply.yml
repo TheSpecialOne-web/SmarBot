@@ -1,0 +1,95 @@
+name: "Infrastructure: Terraform Apply"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TF_SENTRY_AUTH_TOKEN }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    outputs:
+      env: ${{ steps.set-env.outputs.env }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set env
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          else
+            echo "env=${{ inputs.env }}" >> $GITHUB_OUTPUT
+          fi
+
+  setup-env:
+    needs: setup
+    environment: ${{ needs.setup.outputs.env }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    outputs:
+      gcp_project_id: ${{ steps.set-env.outputs.gcp_project_id }}
+      gcp_project_number: ${{ steps.set-env.outputs.gcp_project_number }}
+      env: ${{ needs.setup.outputs.env }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set GCP Project ID and Number
+        id: set-env
+        run: |
+          echo "gcp_project_id=${{ vars.GCP_PROJECT_ID }}" >> $GITHUB_OUTPUT
+          echo "gcp_project_number=${{ vars.GCP_PROJECT_NUMBER }}" >> $GITHUB_OUTPUT
+
+  apply:
+    needs: setup-env
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        include:
+          - directory: infra/sentry
+          - directory: infra/gcp/${{ needs.setup-env.outputs.env }}
+            project_id: ${{ needs.setup-env.outputs.gcp_project_id }}
+            workload_identity_provider: projects/${{ needs.setup-env.outputs.gcp_project_number }}/locations/global/workloadIdentityPools/github/providers/neo-smart-chat
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Google Cloud Authentication
+        if: startsWith(matrix.directory, 'infra/gcp/')
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ matrix.project_id }}
+          workload_identity_provider: ${{ matrix.workload_identity_provider }}
+
+      - name: Terraform Setup
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve

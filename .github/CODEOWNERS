@@ -1,0 +1,15 @@
+# https://docs.github.com/ja/github/creating-cloning-and-archiving-repositories/about-code-owners
+
+- @yutomoriyasu
+
+/backend @yutomoriyasu @eikiwatanabee
+
+/backend/api/migrations @yuyamakiyama
+
+/frontend @eikiwatanabee @yuyamakiyama
+
+/function @yutomoriyasu @eikiwatanabee @toshikiaihara
+
+/infra @yutomoriyasu @yuyamakiyama
+
+/.github @yuyamakiyama

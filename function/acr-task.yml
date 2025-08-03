@@ -1,0 +1,7 @@
+version: v1.1.0
+steps:
+  - build: -t $Registry/{{.Values.image}} --file {{.Values.dockerfile}} . --build-arg GITHUB_ACCESS_TOKEN={{.Values.GITHUB_ACCESS_TOKEN}}
+    env:
+      - DOCKER_BUILDKIT=1
+  - push:
+      - "$Registry/{{.Values.image}}"

@@ -1,0 +1,119 @@
+[tool.poetry]
+name = "neo-smart-chat-function"
+version = "0.1.0"
+description = "neoAI Chat Function"
+authors = []
+
+[tool.poetry.dependencies]
+python = "^3.10"
+openai = "^1.51.2"
+psycopg2-binary = "2.9.6"
+azure-identity = "1.16.0"
+azure-search-documents = "11.4.0"
+azure-ai-formrecognizer = "3.3.0"
+azure-ai-documentintelligence = "1.0.0b3"
+azure-cognitiveservices-vision-computervision = "0.9.0"
+azure-core = "1.30.1"
+azure-storage-blob = "12.14.1"
+azure-storage-queue = "12.7.1"
+langchain = "0.0.330"
+pydantic = "2.4.2"
+email-validator = "2.0.0"
+pypdf = "^5.1.0"
+pdfplumber = "^0.10.3"
+tiktoken = "0.8.0"
+tenacity = "8.2.3"
+python-docx = "1.1.0"
+python-pptx = "0.6.23"
+pandas = { version = "2.1.4", extras = ["excel"] }
+numpy = "1.26.4"
+PyMuPDF = "1.24.2"
+mojimoji = "0.0.12"
+janome = "^0.4.2"
+sqlalchemy = "2.0.27"
+auth0-python = "3.24.1"
+launchdarkly-server-sdk = "9.1.0"
+beautifulsoup4 = "4.12.3"
+types-beautifulsoup4 = "4.12.0.20240229"
+opencensus-ext-azure = "1.1.9"
+pillow = "^11.0.0"
+types-pillow = "^10.2.0.20240822"
+opencv-python-headless = "4.8.0.76"
+types-requests = "2.31.0"
+neollm = { git = "https://github.com/neoAI-inc/neo-llm-module.git", rev = "v1.3.20" }
+timeout-decorator = "^0.5.0"
+tabulate = "^0.9.0"
+openpyxl = "^3.1.5"
+xlrd = "^2.0.1"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.8.0"
+watchdog = "^4.0.1"
+ruff = "^0.8.1"
+pre-commit = "^4.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 119
+exclude = [
+  ".git",
+  ".hg",
+  ".mypy_cache",
+  ".tox",
+  ".venv",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "backend_env",
+]
+
+[tool.ruff.lint]
+# TODO: select = ["ALL"] にして、いらないやつだけ ignore に入れるようにしたい
+select = ["E", "F", "W", "C", "B", "T", "R", "RUF"]
+ignore = [
+  "E203",   # whitespace-before-punctuation
+  "E501",   # line-too-long
+  "C901",   # complex-structure (want to add)
+  "B008",   # function-call-in-default-argument (want to add)
+  "B006",   # mutable-argument-default (want to add)
+  "B017",   # assert-raises-exception
+  "B904",   # raise-without-from-inside-except
+  "T201",   # print (want to add)
+  "RUF001", # ambiguous-unicode-character-string
+  "RUF002", # ambiguous-unicode-character-docstring
+  "RUF003", # ambiguous-unicode-character-comment
+  "RET504", # superfluous-else-break (want to add)
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+force-wrap-aliases = true
+
+[tool.mypy]
+namespace_packages = true
+explicit_package_bases = true
+plugins = "sqlalchemy.ext.mypy.plugin"
+
+[[tool.mypy.overrides]]
+module = [
+  "psycopg2.*",
+  "pandas",
+  "docx.*",
+  "pptx",
+  "openpyxl.*",
+  "azure.cognitiveservices.vision.computervision.*",
+  "auth0.*",
+  "opencensus.*",
+  "fitz.*",
+  "neollm.*",
+  "janome.*",
+  "timeout_decorator.*",
+  "xlrd.*",
+  "google.auth.*",
+]
+ignore_missing_imports = true

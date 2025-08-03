@@ -1,0 +1,10 @@
+VITE_SENTRY_ENV="development"
+VITE_AUTH0_DOMAIN="dev-neosmartchat.jp.auth0.com"
+VITE_AUTH0_CLIENT_ID="aqVopoQv84swFFQHHjTt0V4UAFoZPxEZ"
+VITE_AUTH0_AUDIENCE="https://dev-neosmartchat.jp.auth0.com/api/v2/"
+VITE_EXTERNAL_API_URL="https://dev.chat.neoai.jp/api"
+VITE_API_BASE_URL="https://dev.chat.neoai.jp/backend-api"
+VITE_APP_BASE_URL="https://dev.chat.neoai.jp"
+VITE_ADMINISTRATOR_API_BASE_URL="https://dev.chat.neoai.jp/administrator-api"
+VITE_LAUNCH_DARKLY_CLIENT_SIDE_ID="659f81908c17cf0fd30afe06"
+VITE_SENTRY_AUTH_TOKEN=

@@ -1,0 +1,158 @@
+name: "Infrastructure: Terraform Plan"
+
+on:
+  pull_request:
+    paths:
+      - infra/sentry/**
+      - infra/gcp/**
+    branches-ignore:
+      - stg
+      - prod
+      - jp-bank
+      - jsbank
+      - ibk
+      - nrtas-ana
+      - sbis-bank
+      - kyuden
+      - oss-bank
+
+env:
+  ARM_ACCESS_KEY: ${{ secrets.ARM_ACCESS_KEY }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TF_SENTRY_AUTH_TOKEN }}
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        include:
+          - directory: infra/sentry
+          - directory: infra/gcp/dev
+            project_id: neosc-dev
+            workload_identity_provider: projects/614609793902/locations/global/workloadIdentityPools/github/providers/neo-smart-chat
+          - directory: infra/gcp/stg
+            project_id: neosc-stg
+            workload_identity_provider: projects/418307038234/locations/global/workloadIdentityPools/github/providers/neo-smart-chat
+          - directory: infra/gcp/prod
+            project_id: neosc-prod
+            workload_identity_provider: projects/593303034757/locations/global/workloadIdentityPools/github/providers/neo-smart-chat
+          - directory: infra/gcp/jp-bank
+            project_id: neosc-jp-bank
+            workload_identity_provider: projects/36029014087/locations/global/workloadIdentityPools/github/providers/neo-smart-chat
+          - directory: infra/gcp/kyuden
+            project_id: neosc-kyuden
+            workload_identity_provider: projects/483732101793/locations/global/workloadIdentityPools/github/providers/neo-smart-chat
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Google Cloud Authentication
+        if: startsWith(matrix.directory, 'infra/gcp/')
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ matrix.project_id }}
+          workload_identity_provider: ${{ matrix.workload_identity_provider }}
+
+      - name: Terraform Setup
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color
+
+      - name: Reformat Plan
+        run: |
+          echo '${{ steps.plan.outputs.stdout || steps.plan.outputs.stderr }}' \
+          | sed -E 's/^([[:space:]]+)([-+])/\2\1/g' > plan.txt
+
+      - name: Put Plan in Env Var
+        run: |
+          PLAN=$(cat plan.txt)
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          echo "$PLAN" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Read Plan and Post Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          VALIDATE_OUTPUT: ${{ steps.validate.outputs.stdout }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Working Directory: \`${{ matrix.directory }}\`');
+            });
+
+            // 2. Prepare format of the comment
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`terraform
+            ${ process.env.VALIDATE_OUTPUT }
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`diff
+            ${ process.env.PLAN }
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Working Directory: \`${{ matrix.directory }}\``;
+
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }

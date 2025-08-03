@@ -1,0 +1,100 @@
+name: "Infrastructure: Deploy"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: infra/azure
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    outputs:
+      env: ${{ steps.set-env.outputs.env }}
+      deployment_name: ${{ steps.set-deployment-name.outputs.deployment_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set env
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          else
+            echo "env=${{ inputs.env }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set deployment name
+        id: set-deployment-name
+        run: echo "deployment_name=${{ steps.set-env.outputs.env }}-$(date +'%Y-%m-%dT%H-%M-%S')" >> $GITHUB_OUTPUT
+        env:
+          TZ: Asia/Tokyo
+
+  deploy:
+    needs: setup
+
+    environment: ${{ needs.setup.outputs.env }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: az login
+        uses: Azure/login@v2.1.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retrieve Azure SSH Key
+        id: retrieve-ssh-key
+        run: |
+          SSH_KEY=$(az sshkey show --resource-group rg-${{ vars.AZURE_ENV_NAME }} --name ${{ vars.AZURE_SSH_KEY_NAME }} | jq -r '.publicKey')
+          echo "ssh-key=$SSH_KEY" >> $GITHUB_OUTPUT
+
+      - name: Deploy Infrastructure
+        run: |
+          az deployment sub create \
+            --name ${{ needs.setup.outputs.deployment_name }} \
+            --location ${{ vars.AZURE_LOCATION }} \
+            --template-file main.bicep \
+            --parameters main.bicepparam
+        env:
+          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_DOMAIN_NAME: ${{ vars.AZURE_DOMAIN_NAME }}
+          AZURE_DOMAIN_NAME_V2: ${{ vars.AZURE_DOMAIN_NAME_V2 }}
+          AZURE_METABASE_DOMAIN_NAME: ${{ vars.AZURE_METABASE_DOMAIN_NAME }}
+          AZURE_ALLOWED_IPS: ${{ secrets.AZURE_ALLOWED_IPS }}
+          AZURE_KV_NAME: ${{ vars.AZURE_KV_NAME }}
+          AZURE_OPENAI_LOCATIONS: ${{ vars.AZURE_OPENAI_LOCATIONS }}
+          AZURE_FRONTDOOR_ALLOWED_IPS: ${{ secrets.AZURE_FRONTDOOR_ALLOWED_IPS }}
+          AZURE_ALERT_EMAIL_RECEIVERS: ${{ secrets.AZURE_ALERT_EMAIL_RECEIVERS }}
+          AZURE_DEPLOY_COMPUTER_VISION: ${{ vars.AZURE_DEPLOY_COMPUTER_VISION }}
+          AZURE_USE_GLOBAL_STANDARD_DEPLOYMENT: ${{ vars.AZURE_USE_GLOBAL_STANDARD_DEPLOYMENT }}
+          AZURE_SSH_PUBLIC_KEY_FOR_JUMP_SERVER: ${{ steps.retrieve-ssh-key.outputs.ssh-key }}
+          GOOGLE_CLOUD_PROJECT_NUMBER: ${{ vars.GOOGLE_CLOUD_PROJECT_NUMBER }}
+
+      - name: Cancel Deployment if canceled
+        if: cancelled()
+        run: az deployment sub cancel --name ${{ needs.setup.outputs.deployment_name }}

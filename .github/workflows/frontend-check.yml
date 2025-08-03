@@ -1,0 +1,46 @@
+name: "Frontend: Check"
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-check.yml"
+      - "backend/api/controllers/api/openapi/**"
+      - "backend/api/controllers/backend_api/openapi/**"
+      - "backend/api/controllers/administrator_api/openapi/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/package.json
+
+      - name: Install Node.js dependencies
+        run: npm install
+
+      - name: Generate schema
+        run: npm run orval
+
+      - name: Run format
+        run: npm run format
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run build
+        run: npm run build

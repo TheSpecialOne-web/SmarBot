@@ -1,0 +1,34 @@
+name: "OpenAPI: Check"
+
+on:
+  pull_request:
+    paths:
+      - "backend/**/openapi.yml"
+      - ".github/workflows/openapi-check.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        spec: [api, backend_api, administrator_api]
+
+    services:
+      swagger-editor:
+        image: swaggerapi/swagger-editor
+        ports:
+          - 80:8080
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: pip install openapi-spec-validator
+
+      - name: Validate OpenAPI definition
+        run: openapi-spec-validator backend/api/controllers/${{ matrix.spec }}/openapi/openapi.yml

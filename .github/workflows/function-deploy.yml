@@ -1,0 +1,77 @@
+name: "Function: Deploy"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+
+env:
+  ACR_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+  IMAGE_NAME: "neo-smart-chat-function"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+defaults:
+  run:
+    working-directory: function
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    outputs:
+      env: ${{ steps.set-env.outputs.env }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set env
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          else
+            echo "env=${{ inputs.env }}" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    needs: setup
+
+    environment: ${{ needs.setup.outputs.env }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: az login
+        uses: Azure/login@v2.1.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Generate GitHub Access Token
+        id: generate-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.NEOLLM_INSTALLER_APP_ID }}
+          private_key: ${{ secrets.NEOLLM_INSTALLER_PRIVATE_KEY }}
+
+      - name: Login to Azure Container Registry
+        run: az acr login -n ${{ env.ACR_NAME }}
+
+      - name: Build and Push Image
+        run: |
+          az acr run -f ./acr-task.yml \
+          --registry ${{ env.ACR_NAME }} \
+          --set image="${{ env.IMAGE_NAME }}:latest" \
+          --set dockerfile="Dockerfile" \
+          --set GITHUB_ACCESS_TOKEN=${{ steps.generate-token.outputs.token }} .
