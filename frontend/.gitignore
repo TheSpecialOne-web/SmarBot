@@ -1,6 +1,0 @@
-node_modules/
-src/orval/
-src/generated/
-
-# Sentry Config File
-.env.sentry-build-plugin
