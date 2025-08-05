@@ -17,6 +17,11 @@ services:
     environment:
       - PYTHONPATH=/app
       - MYPYPATH=/app
+      # AWS Configuration
+      - AWS_BEDROCK_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
+      - AWS_OPENSEARCH_ENDPOINT=${AWS_OPENSEARCH_ENDPOINT:-}
     command: |
       sh -c "
         poetry install --no-root && \
@@ -25,7 +30,8 @@ services:
       "
     depends_on:
       - db
-      - azurite
+      - opensearch
+      - s3-local
 
   jobs:
     build:
@@ -84,17 +90,72 @@ services:
       - ./function/.env
     depends_on:
       - db
-      - azurite
+      - opensearch
+      - s3-local
 
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
-    ports:
-      - "10000:10000"
-      - "10001:10001"
-    volumes:
-      - ./azurite:/data
+  # OpenSearch for document search (replaces Azure Cognitive Search)
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: opensearch
     environment:
-      - AZURITE_ACCOUNTS="devstoreaccount1:Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;stbloblocal:c3RibG9ibG9jYWw=;stpubliclocal:c3RwdWJsaWNsb2NhbGtleQ==;stbatchlocal:c3RiYXRjaGxvY2Fsa2V5"
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch
+      - discovery.seed_hosts=opensearch
+      - cluster.initial_master_nodes=opensearch
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+
+  # OpenSearch Dashboards for management
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601"
+    expose:
+      - "5601"
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
+    depends_on:
+      - opensearch
+
+  # MinIO S3-compatible storage (replaces Azure Blob Storage)
+  s3-local:
+    image: minio/minio:latest
+    container_name: s3-local
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - s3-data:/data
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    command: server /data --console-address ":9001"
+
+  # azurite:  # Commented out for AWS migration
+  #   image: mcr.microsoft.com/azure-storage/azurite
+  #   ports:
+  #     - "10000:10000"
+  #     - "10001:10001"
+  #   volumes:
+  #     - ./azurite:/data
+  #   environment:
+  #     - AZURITE_ACCOUNTS="devstoreaccount1:Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;stbloblocal:c3RibG9ibG9jYWw=;stpubliclocal:c3RwdWJsaWNsb2NhbGtleQ==;stbatchlocal:c3RiYXRjaGxvY2Fsa2V5"
 
   metabase:
     image: metabase/metabase:latest
@@ -126,4 +187,6 @@ volumes:
   api-mypy-cache:
   api-ruff-cache:
   function-mypy-cache:
-  function-ruff-cache: #a revoir
+  function-ruff-cache:
+  opensearch-data:
+  s3-data:

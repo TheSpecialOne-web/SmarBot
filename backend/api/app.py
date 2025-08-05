@@ -28,6 +28,7 @@ from starlette.middleware.cors import CORSMiddleware
 from api.controllers.administrator_api.router import administrator_api_router
 from api.controllers.api.router import external_api_router
 from api.controllers.backend_api.router import backend_api_router
+from api.controllers.automotive.router import automotive_router
 from api.database import DBSessionMiddleware
 from api.libs.ctx import set_trace_id_to_request
 from api.libs.error_handlers import http_exception_handler, request_validation_exception_handler
@@ -59,6 +60,7 @@ external_api.add_middleware(
     allow_headers=["*"],
 )
 external_api.include_router(external_api_router)
+external_api.include_router(automotive_router)
 
 backend_api = FastAPI(title="backend_api")
 backend_api.add_exception_handler(StarletteHTTPException, http_exception_handler)
