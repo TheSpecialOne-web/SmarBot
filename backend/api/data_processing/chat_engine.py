@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, Tuple
 import logging
 from datetime import datetime
 from dataclasses import dataclass, asdict
-from vector_search import GoonetVectorSearch
+from .vector_search import GoonetVectorSearch
 
 logger = logging.getLogger(__name__)
 
@@ -124,13 +124,58 @@ class GoonetChatEngine:
             
         except Exception as e:
             logger.error(f"Erreur lors de l'appel à Claude: {e}")
-            return self._generate_fallback_response()
+            return self._generate_fallback_response("", {}, [])
     
-    def _generate_fallback_response(self) -> str:
-        """Réponse de fallback en cas d'erreur avec Claude"""
-        return """申し訳ございませんが、現在一時的にサービスに接続できません。
-しばらく時間をおいてから再度お試しください。
-お急ぎの場合は、最寄りのGoo-net Pit登録店舗にお電話でお問い合わせください。"""
+    def _generate_fallback_response(self, user_message: str = "", entities: Dict[str, Any] = None, search_results: List[Dict[str, Any]] = None) -> str:
+        """Réponse de fallback intelligente basée sur les données locales"""
+        if not entities:
+            entities = {}
+        if not search_results:
+            search_results = []
+            
+        # Réponse basée sur les résultats de recherche locaux
+        response = "お客様のお車の問題について回答いたします。\n\n"
+        
+        # Informations sur le véhicule
+        if entities.get('manufacturer'):
+            response += f"**車両情報:**\n"
+            response += f"メーカー: {entities['manufacturer']}\n"
+            if entities.get('model'):
+                response += f"車種: {entities['model']}\n"
+            if entities.get('year'):
+                response += f"年式: {entities['year']}年\n"
+            response += "\n"
+        
+        # Résultats de recherche
+        if search_results:
+            response += "**類似事例:**\n"
+            for i, result in enumerate(search_results[:2], 1):
+                article = result['article']
+                response += f"\n{i}. {article['vehicle_info']['manufacturer']} {article['vehicle_info']['model']} ({article['vehicle_info']['year']}年)\n"
+                
+                if article['obd_codes']:
+                    codes = [f"{code['code']} - {code['description']}" for code in article['obd_codes']]
+                    response += f"   故障コード: {codes[0]}\n"
+                
+                if article['diagnosis']:
+                    response += f"   診断: {article['diagnosis']}\n"
+                
+                if article['solution']:
+                    response += f"   対処法: {article['solution']}\n"
+                
+                if article['estimated_price']:
+                    response += f"   修理費用目安: {article['estimated_price']:,}円\n"
+        else:
+            response += "申し訳ございませんが、お客様の症状に完全に一致する事例が見つかりませんでした。\n"
+            response += "より詳しい情報（車種、年式、具体的な症状など）をお教えいただけますと、より適切なアドバイスができます。\n\n"
+        
+        # Recommandations générales
+        response += "\n**推奨事項:**\n"
+        response += "• 最寄りのGoo-net Pit登録店舗での点検をお勧めします\n"
+        response += "• 安全運転を心がけ、異常を感じたら早めの点検を受けてください\n"
+        response += "• 詳しい診断には専用機器が必要な場合があります\n"
+        
+        return response
     
     def create_diagnostic_prompt(self, 
                                 user_message: str, 
@@ -219,7 +264,7 @@ class GoonetChatEngine:
         
         return prompt
     
-    def process_message(self, user_message: str) -> ChatResponse:
+    def process_message(self, user_message: str, session_id: str = "default") -> Dict[str, Any]:
         """ユーザーメッセージを処理して回答を生成"""
         
         # 1. エンティティ抽出
@@ -237,7 +282,7 @@ class GoonetChatEngine:
         if self.use_bedrock:
             response_text = self.call_claude_bedrock(prompt)
         else:
-            response_text = self._generate_fallback_response()
+            response_text = self._generate_fallback_response(user_message, entities, search_results)
         
         # 5. ガレージ推奨の生成
         garage_recommendations = self._get_garage_recommendations(entities)
@@ -251,17 +296,22 @@ class GoonetChatEngine:
         # 8. フォローアップ質問の生成
         follow_up_questions = self._generate_follow_up_questions(entities, search_results)
         
-        return ChatResponse(
-            message=response_text,
-            confidence=confidence,
-            sources=[{'article_id': r['article']['article_id'], 
-                     'similarity': r['similarity'],
-                     'title': f"{r['article']['vehicle_info']['manufacturer']} {r['article']['vehicle_info']['model']} - {r['article']['summary'][:50]}..."}
-                    for r in search_results[:3]],
-            recommendations=garage_recommendations,
-            appointment_form=appointment_form,
-            follow_up_questions=follow_up_questions
-        )
+        # 9. Logging de la conversation
+        self.log_conversation(session_id, user_message, response_text)
+        
+        return {
+            'response': response_text,
+            'confidence': confidence,
+            'sources': [{'article_id': r['article']['article_id'], 
+                        'similarity': r['score'],
+                        'title': f"{r['article']['vehicle_info']['manufacturer']} {r['article']['vehicle_info']['model']} - {r['article']['summary'][:50]}..."}
+                       for r in search_results[:3]],
+            'recommended_garages': garage_recommendations,
+            'appointment_form': appointment_form,
+            'follow_up_questions': follow_up_questions,
+            'entities': entities,
+            'session_id': session_id
+        }
     
     def _get_garage_recommendations(self, entities: Dict[str, Any]) -> List[Dict[str, Any]]:
         """ガレージの推奨を生成"""
@@ -275,6 +325,66 @@ class GoonetChatEngine:
         )
         
         return garages[:3]  # Top 3 garages
+    
+    def get_recommended_garages(self, location: str = None, manufacturer: str = None) -> List[Dict[str, Any]]:
+        """Obtient la liste des garages recommandés"""
+        try:
+            import json
+            with open('data/json/garages.json', 'r', encoding='utf-8') as f:
+                garages = json.load(f)
+            return garages
+        except:
+            return [
+                {"name": "Goo-net Pit 東京店", "address": "東京都渋谷区", "phone": "03-1234-5678"},
+                {"name": "Goo-net Pit 大阪店", "address": "大阪府大阪市", "phone": "06-1234-5678"},
+                {"name": "Goo-net Pit 名古屋店", "address": "愛知県名古屋市", "phone": "052-1234-5678"}
+            ]
+    
+    def generate_follow_up_questions(self, symptom: str, entities: List[Dict]) -> List[str]:
+        """Génère des questions de suivi basées sur le symptôme"""
+        base_questions = [
+            "症状はいつ頃から始まりましたか？",
+            "他に気になる音や振動はありませんか？",
+            "最近メンテナンスは行いましたか？"
+        ]
+        
+        if "ハンドル" in symptom:
+            base_questions.extend([
+                "ハンドルの重さは常時ですか、それとも特定の状況だけですか？",
+                "パワーステアリングフルードの点検はされましたか？"
+            ])
+        elif "エンジン" in symptom:
+            base_questions.extend([
+                "エンジンの回転は正常ですか？",
+                "燃費に変化はありませんか？"
+            ])
+        elif "エアコン" in symptom:
+            base_questions.extend([
+                "冷風は全く出ませんか、それとも弱いですか？",
+                "異音や異臭はありませんか？"
+            ])
+            
+        return base_questions[:3]
+    
+    def log_conversation(self, session_id: str, user_message: str, bot_response: str):
+        """Journalise la conversation"""
+        try:
+            import json
+            import os
+            from datetime import datetime
+            
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "session_id": session_id,
+                "user_message": user_message,
+                "bot_response": bot_response[:200] + "..." if len(bot_response) > 200 else bot_response
+            }
+            
+            os.makedirs('data/logs', exist_ok=True)
+            with open(f'data/logs/conversation_{session_id}.json', 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+        except Exception as e:
+            logger.warning(f"Impossible de journaliser la conversation: {e}")
     
     def _calculate_confidence(self, search_results: List[Dict[str, Any]], entities: Dict[str, Any]) -> float:
         """回答の信頼度を計算"""
@@ -298,6 +408,51 @@ class GoonetChatEngine:
         
         confidence = min(base_confidence + entity_bonus + multiple_results_bonus, 1.0)
         return round(confidence, 3)
+    
+    def _generate_appointment_form(self, entities: Dict[str, Any], garages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Génère un formulaire de prise de rendez-vous pré-rempli"""
+        form = {
+            "vehicle_info": {
+                "manufacturer": entities.get('manufacturer', ''),
+                "model": entities.get('model', ''),
+                "year": entities.get('year', ''),
+            },
+            "problem_description": entities.get('symptoms', [''])[0] if entities.get('symptoms') else '',
+            "obd_code": entities.get('obd_code', ''),
+            "preferred_garage": garages[0]['name'] if garages else '',
+            "urgency": "normal"
+        }
+        return form
+    
+    def _generate_follow_up_questions(self, entities: Dict[str, Any], search_results: List[Dict[str, Any]]) -> List[str]:
+        """Génère des questions de suivi intelligentes"""
+        questions = []
+        
+        # Questions basées sur les entités manquantes
+        if not entities.get('manufacturer'):
+            questions.append("お車のメーカーを教えてください")
+        if not entities.get('year'):
+            questions.append("お車の年式はいつ頃でしょうか？")
+        if not entities.get('symptoms'):
+            questions.append("具体的にはどのような症状でしょうか？")
+            
+        # Questions basées sur les résultats de recherche
+        if search_results:
+            article = search_results[0]['article']
+            if article.get('obd_codes') and not entities.get('obd_code'):
+                questions.append("診断機でエラーコードは確認されましたか？")
+            if article.get('solution'):
+                questions.append("以前に同様の修理をされたことはありますか？")
+        
+        # Questions générales
+        if len(questions) < 2:
+            questions.extend([
+                "症状はいつ頃から始まりましたか？",
+                "他に気になる点はありませんか？",
+                "最近メンテナンスは行いましたか？"
+            ])
+        
+        return questions[:3]
     
     def _generate_appointment_form(self, entities: Dict[str, Any], garages: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """予約フォームの事前入力データを生成"""
