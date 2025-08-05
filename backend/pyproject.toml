@@ -7,12 +7,16 @@ packages = [{ include = "api" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-azure-identity = "1.16.0"
-openai = { version = "^1.51.2", extras = ["embeddings"] }
-azure-search-documents = "11.4.0"
-azure-storage-blob = "12.14.1"
-azure-storage-queue = "12.7.1"
-azure-ai-formrecognizer = "3.3.0"
+# AWS Dependencies for Bedrock migration
+boto3 = "^1.35.0"
+botocore = "^1.35.0"
+# azure-identity = "1.16.0"  # Removed for AWS migration
+# openai = { version = "^1.51.2", extras = ["embeddings"] }  # Replaced by Bedrock
+opensearch-py = "^2.4.0"
+# azure-search-documents = "11.4.0"  # Replaced by OpenSearch
+# azure-storage-blob = "12.14.1"  # Replaced by S3
+# azure-storage-queue = "12.7.1"  # Replaced by SQS
+# azure-ai-formrecognizer = "3.3.0"  # Will use alternative
 pypdf = "^5.1.0"
 pdfplumber = "^0.10.3"
 tiktoken = "^0.8.0"
@@ -27,7 +31,7 @@ email-validator = "2.0.0"
 pycryptodome = "^3.20.0"
 pydantic = "2.4.2"
 pytz = "^2023.3.post1"
-opencensus-ext-azure = "1.1.9"
+# opencensus-ext-azure = "1.1.9"  # Replaced by AWS CloudWatch
 tenacity = "8.2.3"
 typing-extensions = "^4.12.2"
 injector = "0.21.0"
@@ -40,18 +44,18 @@ alembic = "1.12.1"
 pandas-stubs = "^2.1.4.231227"
 python-docx = "1.1.0"
 python-pptx = "0.6.23"
-azure-cognitiveservices-vision-computervision = "^0.9.0"
+# azure-cognitiveservices-vision-computervision = "^0.9.0"  # Will use alternative
 beautifulsoup4 = ">=4.11.1"
 types-beautifulsoup4 = "4.12.0.20240229"
 types-python-dateutil = "^2.9.0.20240316"
-neollm = { git = "https://github.com/neoAI-inc/neo-llm-module.git", rev = "v1.3.24" }
+# neollm = { git = "https://github.com/neoAI-inc/neo-llm-module.git", rev = "v1.3.24" }  # Replaced by Bedrock
 sentry-sdk = { extras = ["fastapi"], version = "^2.13.0" }
 pypandoc = "^1.13"
 tabulate = "^0.9.0"
 gevent = "^24.10.2"
 openpyxl = "^3.1.5"
 psutil = "^5.9"
-azure-monitor-opentelemetry = "^1.6.2"
+# azure-monitor-opentelemetry = "^1.6.2"  # Replaced by AWS CloudWatch
 pillow = "^11.0.0"
 markdown = "^3.7"
 msgraph-sdk = "^1.14.0"
